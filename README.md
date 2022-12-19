@@ -1,4 +1,6 @@
 # Research-Assistant (RA)
+NOTE: Because some work is still in progress, not all data will appear here.
+
 This repository consists of work completed while working as a RA and is organized as follows: 
 
 International Brazillian Jiu-Jitsu (IBJJF) webscrape
@@ -9,6 +11,7 @@ International Brazillian Jiu-Jitsu (IBJJF) webscrape
 
 (3) 'RankTable' is the rank of each competitor.
 
+DRUG LAWS
 
+The file labeled 'DrugLaws' scrapes both web pages and PDF files for drug laws in each state.
 
-NOTE: Because some of the work is still in progress, not all data will appear here.
