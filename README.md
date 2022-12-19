@@ -11,7 +11,7 @@ This repository consists of work completed while working as a RA and is organize
 
 (3) 'RankTable' is the rank of each competitor.
 
-###**DRUG LAWS**
+### **DRUG LAWS**
 
 The file labeled 'DrugLaws' scrapes both web pages and PDF files for drug laws in each state.
 
