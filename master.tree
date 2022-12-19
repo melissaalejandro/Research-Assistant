@@ -1,0 +1,148 @@
+library(rvest)
+library(purrr)
+library(tidyverse)
+library(tibble)
+library(tidyr)
+library(stringr)
+
+links = read.csv('https://raw.githubusercontent.com/melissaalejandro/Research-Assistant/main/links_tree.table.csv')
+
+# unlist df and rm col name
+links = unname(unlist(links))
+
+master.treeDQ = data.frame()
+
+# helpers --------------------------------------------------------
+
+# to keep matches with details (when/where) in header
+is_valid_match <- function(element){
+  return(length(html_elements(element, ".bracket-match-header")) > 0)
+}
+# detect winner
+is_winner <- function(element){
+  return(length(html_elements(element, ".match-competitor--loser")) < 1 )
+}
+# extract data from competitor sections
+comp_details <- function(comp_card, prefix="_"){
+  l = lst()
+  l[paste(prefix, "n",    sep = "")] <- comp_card %>% html_element(".match-card__competitor-n") %>% html_text()
+  l[paste(prefix, "name", sep = "")] <- comp_card %>% html_element(".match-card__competitor-description div:nth-child(1)") %>% html_text()
+  l[paste(prefix, "club", sep = "")] <- comp_card %>% html_element(".match-card__club-name") %>% html_text()
+  l[paste(prefix, "dq",   sep = "")] <- comp_card %>% html_element(".match-card__disqualification") %>% html_attr("title")
+  l[paste(prefix, "won",  sep = "")] <- comp_card %>% html_element(".match-competitor--loser") %>% length() == 0
+  return(l) 
+}
+
+# use to help keep track of the element
+x=0
+
+# scrape & process -----------------------------------------------
+
+for (i in 1:437){
+html <- read_html(links[i])
+
+matches = html %>% 
+  # collect all match cards
+  html_elements("div.tournament-category__match") %>% 
+  
+  # apply anonymous function to every item in the list of match cards
+  map(function(match_card){
+    match_id <- match_card %>% html_element(".tournament-category__match-card") %>% html_attr("id")
+    where    <- match_card %>% html_element(".bracket-match-header__where") %>% html_text()
+    when     <- match_card %>% html_element(".bracket-match-header__when")  %>% html_text()
+    
+    competitors <- html_nodes(match_card, ".match-card__competitor")
+    # extract competitior data
+    comp01 <- competitors[[1]] %>% comp_details(prefix = "comp01_")
+    comp02 <- competitors[[2]] %>% comp_details(prefix = "comp02_")
+    
+    winner_idx <- competitors %>% detect_index(is_winner)
+    # lst for creating a named list 
+    l <- lst(match_id, where, when, winner_idx)
+    # combine all items and comp lists into single list
+    l <- c(l,comp01, comp02)
+    return(l)
+  }) %>% 
+  # each resulting list item into single-row tibble
+  map(as_tibble) %>% 
+  # reduce list of tibbles into single tibble
+  reduce(bind_rows)
+
+# division, gender, belt, and weight
+specs = data.frame(division = html %>%
+                     html_nodes('.category-title__age-division') %>%
+                     html_text(trim = TRUE),
+                   gender = html %>%
+                     html_nodes('.category-title__age-division+ .category-title__label') %>%
+                     html_text(trim = TRUE),
+                   belt = html %>%
+                     html_nodes('.category-title__label:nth-child(3)') %>%
+                     html_text(trim = TRUE),
+                   weight = html %>%
+                     html_nodes('.category-title__label:nth-child(4)') %>%
+                     html_text(trim = TRUE))
+
+q = merge(specs, matches, all = T)
+
+master.treeDQ = rbind(master.treeDQ, q)
+
+# Update element count
+x = x+1
+
+# check completed links
+print(links[i]); print(paste('Element', x, "is done"))
+
+}
+
+# Data Cleaning ------------------------
+
+# Replace all blanks with 'NA'
+master.treeDQ[master.treeDQ==""] <- NA
+
+# Change DQ columns to 0 or 1
+master.treeDQ$comp01_dq <- ifelse(is.na(master.treeDQ$comp01_dq), 0,1)
+master.treeDQ$comp02_dq <- ifelse(is.na(master.treeDQ$comp02_dq), 0,1)
+
+# Change winners from T or F to 1 and 0
+master.treeDQ$comp01_won <- as.integer(master.treeDQ$comp01_won)
+master.treeDQ$comp02_won <- as.integer(master.treeDQ$comp02_won)
+
+# Create new column that removes everything after :. 
+# Relocate the new column before the 'when' col
+# separate when into two columns, day and time
+# separate when again into two cols, day and date
+master.treeDQ = master.treeDQ %>%
+    mutate(fight = sub(':.*', '', master.treeDQ$where)) %>%
+    relocate(fight, .before = when) %>%
+    separate(when, into = c('day', 'time'), sep = ' at ', remove = FALSE) %>%
+    separate(day, into = c('day', 'date'), sep = ' ', remove = F) %>% 
+    relocate(time, .after = date)
+
+# Fill remaining NA's with BYE
+master.treeDQ[is.na(master.treeDQ)] <- 'BYE'
+
+# Remove unnecessary columns
+master.treeDQ = master.treeDQ[-c(5,6,8)]
+
+master.treeDQ[is.na(master.treeDQ)] <- 'BYE'
+
+cbind(lapply(lapply(master.treeDQ, is.na), sum))
+
+# check for special chars in both name cols
+sum(grepl('[[:punct:]]', master.treeDQ$comp01_name))
+sum(grepl('[[:punct:]]', master.treeDQ$comp02_name))
+
+# remove special chars from both name cols
+master.treeDQ2 = master.treeDQ
+master.treeDQ2$comp01_name = str_replace_all(master.treeDQ2$comp01_name, "[[:punct:]]", "")
+master.treeDQ2$comp02_name = str_replace_all(master.treeDQ2$comp02_name, "[[:punct:]]", "")
+
+# check again for special chars
+sum(grepl('[[:punct:]]', master.treeDQ2$comp01_name))
+sum(grepl('[[:punct:]]', master.treeDQ2$comp02_name))
+
+
+
+
+
+
