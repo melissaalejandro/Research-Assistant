@@ -68,12 +68,10 @@ final_table$Competitor = gsub('[0-9]+', '', final_table$Competitor)
 final_table <- mutate(final_table, Competitor = str_remove(Competitor, '\n'))
 
 # remove special characters from Competitor column
-final_table2 = final_table
 final_table$Competitor = str_replace_all(final_table$Competitor, "[[:punct:]]", "")     
 
 # check for special chars in Competitor col
 sum(grepl('[[:punct:]]', final_table$Competitor))
-
 
 
 
