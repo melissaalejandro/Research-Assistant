@@ -1,0 +1,79 @@
+library(rvest)
+library(purrr)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(stringr)
+
+links = read.csv('https://raw.githubusercontent.com/melissaalejandro/Research-Assistant/main/links_tree.table.csv')
+
+# unlist df and rm col name
+links = unname(unlist(links))
+
+table_list <- list()
+x=0
+
+for (i in 1:437) {
+    
+    page <- read_html(links[i])
+    
+    the_table <- page %>% html_table() %>% .[[1]] %>% 
+        filter(X1 != "") %>%
+        # Replace "-" with NA
+        mutate(across(everything(), ~ na_if(.x, "-"))) %>%
+        # Use `readr::parse_guess` to guess column format for char cols
+        mutate(across(where(is.character), parse_guess))
+    
+    colnames(the_table) <- page %>% html_element(xpath = "//thead") %>% 
+        html_text() %>% 
+        str_replace_all("\n+", "\n") %>% 
+        str_split("\n") %>% 
+        unlist() %>% 
+        .[.!=""]
+
+# division, gender, belt, and weight
+specs = data.frame(division = page %>%
+                     html_nodes('.category-title__age-division') %>%
+                     html_text(trim = TRUE),
+                   gender = page %>%
+                     html_nodes('.category-title__age-division+ .category-title__label') %>%
+                     html_text(trim = TRUE),
+                   belt = page %>%
+                     html_nodes('.category-title__label:nth-child(3)') %>%
+                     html_text(trim = TRUE),
+                   weight = page %>%
+                     html_nodes('.category-title__label:nth-child(4)') %>%
+                     html_text(trim = TRUE))
+
+the_table = merge(specs, the_table, all = T)
+ table_list[[i]] <- the_table
+    # Update element count
+    x = x+1
+   # print completed links
+   print(links[i]); print(paste('Element', x, "is done"))
+}
+
+final_table <- Reduce(full_join,table_list)
+
+# Separate rank from name in 'Competitor' col
+final_table = final_table %>%
+  mutate(rank = as.numeric(str_extract(`Nº — Competitor`, "[0-9]+"))) %>%
+  relocate(rank, .before = `Nº — Competitor`) %>%
+  rename(Competitor = `Nº — Competitor`)
+
+# remove rank from 'Competitor' col
+final_table$Competitor = gsub('[0-9]+', '', final_table$Competitor)
+
+# fix competitor name in rank_table
+final_table <- mutate(final_table, Competitor = str_remove(Competitor, '\n'))
+
+# remove special characters from Competitor column
+final_table2 = final_table
+final_table$Competitor = str_replace_all(final_table$Competitor, "[[:punct:]]", "")     
+
+# check for special chars in Competitor col
+sum(grepl('[[:punct:]]', final_table$Competitor))
+
+
+
+
