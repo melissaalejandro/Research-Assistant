@@ -1,0 +1,82 @@
+# INSTALL THE BELOW PACKAGES IF NEEDED
+#install.packages("pdftools")
+#install.packages("remotes")
+#remotes::install_github(c("ropensci/tabulizerjars", "ropensci/tabulizer"), INSTALL_opts = "--no-multiarch", dependencies = c("Depends", "Imports"))
+library(tabulizer)
+library(pdftools)
+library(rvest)
+library(tidyverse)
+library(dplyr)
+
+url = "https://www.ncsl.org/research/health/state-laws-and-legislation-related-to-biologic-medications-and-substitution-of-biosimilars.aspx"
+
+webpage=read_html(url)
+possible = webpage %>% 
+  html_element(css = "#dnn_ctr84472_HtmlModule_lblContent > div > table.table.table-hover.bio") %>% 
+  html_table()
+
+possible = data.frame(possible)
+possible=possible[-1, -c(10:17)]
+
+View(possible)
+
+# Mandatory 2014 ####################################
+
+mandatory_2014 = webpage %>% 
+  html_element(css = "#dnn_ctr84472_HtmlModule_lblContent > div > table:nth-child(15)") %>% 
+  html_table()
+mandatory_2014 = data.frame(mandatory_2014)
+
+mandatory_2014 <- data.frame(Mandatory_substitution_2014 = trimws(scan(text = sub("\\s+\\(.*", "",gsub("(\\n+\\t+)", ",", mandatory_2014)), what="", sep=",")))
+
+View(mandatory_2014)
+
+
+# 2013 - 2019 ########################################
+MintzOriginal = read.csv('https://raw.githubusercontent.com/melissaalejandro/Research-Assistant/main/State%20Legislation%20on%20Biosimilars2.csv')
+Mintz = MintzOriginal
+
+# delete row if col 2 has a blank value. 
+Mintz = Mintz[Mintz$Substitution.Requirements != "", ]
+
+# remove entire row if column 1 has the word 'State'
+Mintz=Mintz[Mintz$State != "State", ]
+
+#reset row numbers
+Mintz= Mintz %>% data.frame(row.names = 1:nrow(.)) # original data only had 46 states (including PR) 
+
+# delete PR
+Mintz = Mintz[-34,]
+
+#reset row numbers
+Mintz= Mintz %>% data.frame(row.names = 1:nrow(.)) 
+
+# Copy the yr each law went into effect into a new col
+Mintz$Year = sub('.*(\\d{4}).*', '\\1', Mintz$State)
+
+Mintz = Mintz[,c(1,4,2,3)]
+
+# Keep only state name in column 1
+mintz=Mintz
+mintz[,1] = mintz %>% 
+  select(State) %>% 
+  mutate(State = str_extract(State, paste(state.name, collapse='|'))
+  ) 
+
+View(mintz)
+
+url2 = "https://oppe.pharmacy.washington.edu/PracticumSite/forms/2019_Survey_of_Pharmacy_Law.pdf?-session=Students_Session%3A42F94F5D0a61a20754trv33D875D&fbclid=IwAR0qeK2tYmyI7T_8ict1Hnew9JxPkpt0bvajI3KL3IFDWg6JHNSSFWGlKY4"
+
+out <- pdf_text(url2)
+all_2019=as.data.frame(out[[93]],header=F)
+
+all_2019=all_2019 %>%
+  rename(x = `out[[93]]`) %>%
+  mutate(x = stringr::str_split(x, '\\n\n',simplify = T)[2]) %>%
+  mutate(x = strsplit(x, '\\n')) %>%
+  unnest() %>%
+  .[-c(1:3),] %>%
+  separate(x, c("a","State", "State Drug Formulary","Two-line Rx Format","Permissive or Mandatory*","How to Prevent Substitution","Cost Savings Pass-on","Patient Consent**"), sep = "\\s{2,}") %>%
+  select(-a)
+
+View(all_2019)
