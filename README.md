@@ -1,4 +1,4 @@
-# Research-Assistant (RA)
+# Research-Assistant (RA) Jobs
 **NOTE:** Because some work is still in progress, not all data will appear here.
 
 This repository consists of work completed while working as a RA and is organized as follows: 
